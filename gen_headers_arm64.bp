@@ -15,6 +15,9 @@ gen_headers_srcs_arm64 = [
 gen_headers_exclude_srcs_arm64 = [
     "include/uapi/linux/a.out.h",
     "include/uapi/linux/kvm_para.h",
+    "include/uapi/linux/signal.h",
+    "include/uapi/asm-generic/signal.h",
+    "arch/arm64/include/uapi/asm/signal.h",
 ]
 
 gen_headers_out_arm64 = [
@@ -67,7 +70,6 @@ gen_headers_out_arm64 = [
     "asm-generic/shmparam.h",
     "asm-generic/siginfo.h",
     "asm-generic/signal-defs.h",
-    "asm-generic/signal.h",
     "asm-generic/socket.h",
     "asm-generic/sockios.h",
     "asm-generic/stat.h",
@@ -525,7 +527,6 @@ gen_headers_out_arm64 = [
     "linux/serial_reg.h",
     "linux/serio.h",
     "linux/shm.h",
-    "linux/signal.h",
     "linux/signalfd.h",
     "linux/slatecom_interface.h",
     "linux/smc.h",
