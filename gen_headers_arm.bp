@@ -1031,6 +1031,10 @@ gen_headers_out_arm = [
     "sound/msmcal-hwdep.h",
     "sound/voice_params.h",
     "sound/wcd-dsp-glink.h",
+    "sound/cs35l41_k81.h",
+    "linux/close_range.h",
+    "linux/ntsync.h",
+    "linux/xdp_diag.h",
 ]
 
 genrule {
