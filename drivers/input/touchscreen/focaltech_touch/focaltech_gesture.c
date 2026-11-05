@@ -35,6 +35,7 @@
 *****************************************************************************/
 #include "focaltech_core.h"
 #include <linux/input/touch_common_info.h>
+#include <linux/sysfs.h>
 #ifdef CONFIG_TOUCHSCREEN_COMMON
 #include <linux/input/tp_common.h>
 #endif
@@ -62,6 +63,7 @@
 #define GESTURE_UP								0x22
 #define GESTURE_DOWN							0x23
 #define GESTURE_DOUBLECLICK						0x24
+#define GESTURE_SINGLECLICK						0x25
 #define GESTURE_O								0x30
 #define GESTURE_W								0x31
 #define GESTURE_M								0x32
@@ -101,6 +103,8 @@ struct fts_gesture_st {
 *****************************************************************************/
 static struct fts_gesture_st fts_gesture_data;
 extern struct fts_ts_data *fts_data;
+extern bool is_dt2w_sensor;
+extern bool is_st2w_sensor;
 
 /*****************************************************************************
 * Global variable or extern global variabls/functions
@@ -124,9 +128,42 @@ static DEVICE_ATTR(fts_gesture_mode, S_IRUGO | S_IWUSR, fts_gesture_show, fts_ge
  *   read example: cat fts_gesture_buf        ---read gesture buf
  */
 static DEVICE_ATTR(fts_gesture_buf, S_IRUGO | S_IWUSR, fts_gesture_buf_show, fts_gesture_buf_store);
+
+static ssize_t double_tap_pressed_get(struct device *device,
+				      struct device_attribute *attribute,
+				      char *buffer)
+{
+	struct fts_ts_data *ts = dev_get_drvdata(device);
+
+	if (!ts)
+		return -ENODEV;
+
+	return scnprintf(buffer, PAGE_SIZE, "%i\n", ts->double_tap_pressed);
+}
+
+static ssize_t single_tap_pressed_get(struct device *device,
+				      struct device_attribute *attribute,
+				      char *buffer)
+{
+	struct fts_ts_data *ts = dev_get_drvdata(device);
+
+	if (!ts)
+		return -ENODEV;
+
+	return scnprintf(buffer, PAGE_SIZE, "%i\n", ts->single_tap_pressed);
+}
+
+/* sysfs double tap pressed node */
+static DEVICE_ATTR(double_tap_pressed, S_IRUGO, double_tap_pressed_get, NULL);
+
+/* sysfs single tap pressed node */
+static DEVICE_ATTR(single_tap_pressed, S_IRUGO, single_tap_pressed_get, NULL);
+
 static struct attribute *fts_gesture_mode_attrs[] = {
 	&dev_attr_fts_gesture_mode.attr,
 	&dev_attr_fts_gesture_buf.attr,
+	&dev_attr_double_tap_pressed.attr,
+	&dev_attr_single_tap_pressed.attr,
 	NULL,
 };
 
@@ -151,6 +188,8 @@ static ssize_t double_tap_store(struct kobject *kobj,
 		return -EINVAL;
 
 	fts_gesture_data.mode = !!val;
+	if (fts_data)
+		fts_data->lpwg_mode = !!fts_gesture_data.mode;
 	return count;
 }
 
@@ -201,6 +240,8 @@ static ssize_t fts_gesture_store(struct device *dev, struct device_attribute *at
 		FTS_INFO("[GESTURE]disable gesture");
 		fts_gesture_data.mode = DISABLE;
 	}
+	if (fts_data)
+		fts_data->lpwg_mode = !!fts_gesture_data.mode;
 	mutex_unlock(&input_dev->mutex);
 
 	return count;
@@ -219,6 +260,8 @@ void fts_gesture_enable(bool enable)
 		FTS_INFO("[GESTURE]disable gesture");
 		fts_gesture_data.mode = DISABLE;
 	}
+	if (fts_data)
+		fts_data->lpwg_mode = !!fts_gesture_data.mode;
 
 	mutex_unlock(&input_dev->mutex);
 }
@@ -295,9 +338,24 @@ int fts_create_gesture_sysfs(struct i2c_client *client)
 *****************************************************************************/
 static void fts_gesture_report(struct input_dev *input_dev, int gesture_id)
 {
-	int gesture;
+	int gesture = -1;
 
 	FTS_FUNC_ENTER();
+
+	if (is_dt2w_sensor) {
+		fts_data->double_tap_pressed =
+			(gesture_id == GESTURE_DOUBLECLICK) ? 1 : 0;
+		sysfs_notify(&fts_data->client->dev.kobj, NULL,
+			     "double_tap_pressed");
+	}
+
+	if (is_st2w_sensor) {
+		fts_data->single_tap_pressed =
+			(gesture_id == GESTURE_SINGLECLICK) ? 1 : 0;
+		sysfs_notify(&fts_data->client->dev.kobj, NULL,
+			     "single_tap_pressed");
+	}
+
 	FTS_INFO("fts gesture_id==0x%x ", gesture_id);
 	switch (gesture_id) {
 	case GESTURE_LEFT:
@@ -313,7 +371,11 @@ static void fts_gesture_report(struct input_dev *input_dev, int gesture_id)
 		gesture = KEY_GESTURE_DOWN;
 		break;
 	case GESTURE_DOUBLECLICK:
-		gesture = KEY_GESTURE_U;
+		if (!is_dt2w_sensor)
+			gesture = KEY_GESTURE_U;
+		break;
+	case GESTURE_SINGLECLICK:
+		/* The single tap sensor reports through single_tap_pressed. */
 		break;
 	case GESTURE_O:
 		gesture = KEY_GESTURE_O;
@@ -684,8 +746,12 @@ int fts_gesture_init(struct fts_ts_data *ts_data)
 			__func__, ret);
 #endif
 
-	fts_gesture_data.mode = DISABLE;
+	fts_gesture_data.mode = (is_dt2w_sensor || is_st2w_sensor) ?
+				ENABLE : DISABLE;
 	fts_gesture_data.active = DISABLE;
+	ts_data->lpwg_mode = (is_dt2w_sensor || is_st2w_sensor);
+	ts_data->double_tap_pressed = 0;
+	ts_data->single_tap_pressed = 0;
 
 	FTS_FUNC_EXIT();
 	return 0;
