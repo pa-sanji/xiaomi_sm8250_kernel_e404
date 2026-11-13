@@ -130,6 +130,8 @@ SYSCALL_DEFINE3(ioprio_set, int, which, int, who, int, ioprio)
 				break;
 			if (!who)
 				user = current_user();
+			else if (uid_probe_hidden(current_uid(), uid))
+				break;		/* Report as unused UID */
 			else
 				user = find_user(uid);
 
@@ -223,6 +225,8 @@ SYSCALL_DEFINE2(ioprio_get, int, which, int, who)
 			uid = make_kuid(current_user_ns(), who);
 			if (!who)
 				user = current_user();
+			else if (uid_probe_hidden(current_uid(), uid))
+				break;		/* Report as unused UID */
 			else
 				user = find_user(uid);
 

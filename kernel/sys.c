@@ -243,6 +243,8 @@ SYSCALL_DEFINE3(setpriority, int, which, int, who, int, niceval)
 		if (!who)
 			uid = cred->uid;
 		else if (!uid_eq(uid, cred->uid)) {
+			if (uid_probe_hidden(cred->uid, uid))
+				goto out_unlock;	/* Report as unused UID */
 			user = find_user(uid);
 			if (!user)
 				goto out_unlock;	/* No processes for this user */
@@ -311,6 +313,8 @@ SYSCALL_DEFINE2(getpriority, int, which, int, who)
 		if (!who)
 			uid = cred->uid;
 		else if (!uid_eq(uid, cred->uid)) {
+			if (uid_probe_hidden(cred->uid, uid))
+				goto out_unlock;	/* Report as unused UID */
 			user = find_user(uid);
 			if (!user)
 				goto out_unlock;	/* No processes for this user */

@@ -63,6 +63,18 @@ static inline bool uid_eq(kuid_t left, kuid_t right)
 	return __kuid_val(left) == __kuid_val(right);
 }
 
+/*
+ * Apps must not be able to use a UID-targeted interface as a liveness oracle
+ * for other apps: whether a foreign UID resolves tells the caller whether that
+ * app currently has any task, which leaks the presence of otherwise hidden
+ * packages. For an app caller only its own UID is resolved; every other UID is
+ * reported exactly like a UID with no processes.
+ */
+static inline bool uid_probe_hidden(kuid_t caller, kuid_t target)
+{
+	return __kuid_val(caller) >= 10000 && !uid_eq(caller, target);
+}
+
 static inline bool gid_eq(kgid_t left, kgid_t right)
 {
 	return __kgid_val(left) == __kgid_val(right);
